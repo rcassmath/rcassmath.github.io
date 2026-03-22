@@ -1,0 +1,116 @@
+d1 = 5
+d2 = 23
+B = 2
+A = -1
+
+biquadratic = True
+
+# F is the number field Q(f) obtained by adjoining a positive square root of d1
+F.<f> = QuadraticField(d1)
+
+if biquadratic:
+    D = -d2
+else:
+    D = A*(d1+B*f)
+
+M = QQ^4
+
+if order(F.narrow_class_group()) == 1:
+
+    G = F.galois_group()
+    R.<t> = F[]
+
+    print("f = sqrt(", d1, "), F = Q(", f, "), E = F( sqrt", D, ")")
+
+    # K is the number field Q(c) obtained by adjoining a square root of D to F,
+    # to is the map from the relative number field F(e) to K
+    E.<e> = F.extension(t^2-D)
+    K.<c> = E.absolute_field()
+    fr, to = K.structure()
+    Disc = F.discriminant()
+
+    # Completes step 1
+    CL = K.class_group()
+
+    # Completes step 2
+    OEBasis = E.integral_basis()
+
+    # Completes step 3
+    X = []
+    Y = []
+    for i in range(0,len(OEBasis)):
+        Y.append((E(OEBasis[i])-(E.complex_conjugation()(OEBasis[i])))/(2*e))
+        X.append((E.complex_conjugation()(OEBasis[i])+E(OEBasis[i]))/2)
+
+    # This is the bound on ideal norms as in step 4 of the algorithm
+    Bound = floor(abs(D)*abs(Disc)*6/pi^2)
+
+    # Completes step 4 and imposes the condition on CM type
+    A_ideals = F.ideals_of_bdd_norm(Bound)
+    C = []
+    
+    # Updated for SageMath 10.x: ideals_of_bdd_norm returns a dictionary
+    for norm, ideals_list in A_ideals.items():
+        if len(ideals_list) > 0:
+            for J in ideals_list:
+                b = J.gens_reduced()[0]
+                if G[0](b) > 0 and G[1](b) > 0:
+                    C.append(b)
+                if G[0](-b)> 0 and G[1](-b) > 0:
+                    C.append(-b)
+                if G[0](b*F.units()[0]) > 0 and G[1](b*F.units()[0]) > 0:
+                    C.append(b*F.units()[0])
+                if G[0](-b*F.units()[0]) > 0 and G[1](-b*F.units()[0]) > 0:
+                    C.append(-b*F.units()[0])
+
+    IList = []
+    ZList = []
+
+    if Mod(d1,4) == 1:
+        s = to((1+f)/2)
+    else:
+        s = to(f)
+
+    done = False
+
+    for a in C:
+
+    # Completes steps 5-6
+        L = []
+        for b in (F.ideal(a).residues()):
+            if F.ideal(a).divides(F.ideal(b^2-D)):
+                L.append([a,b])
+
+    # Completes step 7
+        LL = []
+        for pair in L:
+            for i in range(0,len(OEBasis)):
+                if (Y[i]*pair[0]).is_integral() and (X[i]+Y[i]*pair[1]).is_integral() and (X[i]-Y[i]*pair[1]).is_integral() and ((1/pair[0])*Y[i]*(D-pair[1]^2)).is_integral() and pair not in LL:
+                    LL.append(pair)
+
+    # Completes step 8 and explicitly verifies that the CM points give the appropriate decomposition of fractional ideals
+        for n in range(0,len(LL)):
+            N = to(e-LL[n][1])
+            De = to(LL[n][0])
+            if CL(K.ideal(N/De,1)) not in IList:
+                a_1 = K.vector_space()[2](N/De)
+                a_2 = K.vector_space()[2](s*N/De)
+                a_3 = K.vector_space()[2](1)
+                a_4 = K.vector_space()[2](s)
+                V = M.span([a_1,a_2,a_3,a_4],ZZ)
+                U = K.ideal(N/De,1).free_module()
+                if U == V:
+                    IList.append(CL(K.ideal(N/De,1)))
+                    ZList.append([LL[n][0],LL[n][1]])
+        if CL.order() == len(IList):
+            done = True
+            break
+            
+    if done:
+        print("Found complete set of CM Points:")
+        for CMpoint in ZList:
+            print(CMpoint)
+    else:
+        print("Failure to find complete set of CM points.")
+else:
+    print("F does not have narrow class number 1.")
